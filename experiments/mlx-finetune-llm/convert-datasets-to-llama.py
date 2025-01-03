@@ -2,13 +2,16 @@ import json
 import os
 from datetime import date
 
-data_dir = './data'
-print(os.getcwd())
-print(data_dir)
-for filename in os.listdir(data_dir):
-    if filename.endswith('.jsonl'):
-        input_filepath = os.path.join(data_dir, filename)
-        output_filepath = os.path.join(data_dir, 'output_' + filename)
+# Get the directory of the current script 
+script_dir = os.path.dirname(os.path.abspath(__file__)) 
+# Construct the full path to the target file 
+target_file_path = os.path.join(script_dir, 'data')
+
+print(target_file_path)
+for filename in os.listdir(target_file_path):
+    if filename.endswith('.jsonl') and filename.startswith('mlx'):
+        input_filepath = os.path.join(target_file_path, filename)
+        output_filepath = os.path.join(target_file_path, 'output_' + filename)
 
         with open(input_filepath, 'r') as infile, open(output_filepath, 'w') as outfile:
             for line in infile:

@@ -38,9 +38,15 @@ import random
 import os
 
 random.seed(42)  # for deterministic sampling of test set
-
-train_files = glob.glob("../../llm-dataset/*-train.jsonl") 
-test_files = glob.glob("../../llm-dataset/*-test.jsonl")
+# Get the directory of the current script 
+script_dir = os.path.dirname(os.path.abspath(__file__)) 
+# Construct the full paths to the train and test files
+trainfiles_path = os.path.join(script_dir, '../../llm-dataset/*-train.jsonl') 
+testfiles_path = os.path.join(script_dir, '../../llm-dataset/*-train.jsonl')
+train_files = glob.glob(trainfiles_path) 
+test_files = glob.glob(testfiles_path)
+print(train_files)
+print(test_files)
 
 EVAL_SIZE = 6  # how many documents to evaluate (i.e. calculate loss) on during fine-tuning
 SYSTEM_PROMPT = "You are a skilled librarian specialized in meticulous cataloguing of digital documents."
@@ -60,10 +66,12 @@ def preprocess_sample(sample):
 def dataset_to_records(files):
     records = []
     for filename in files:
-        with open(filename) as infile:
-            for line in infile:
-                sample = json.loads(line)
-                records.append(preprocess_sample(sample))
+        # Use glob to expand any patterns in the filenames 
+        for file in glob.glob(filename):
+            with open(filename) as infile:
+                for line in infile:
+                    sample = json.loads(line)
+                    records.append(preprocess_sample(sample))
     return records
 
 def write_jsonl(records, filename):
@@ -85,7 +93,7 @@ print(target_file_path)
 print(len(train_recs))
 write_jsonl(train_recs, target_file_path)
 print(f"Wrote {len(train_recs)} train records")
-target_file_path = os.path.join(script_dir, 'data', 'mlx-text.jsonl') 
+target_file_path = os.path.join(script_dir, 'data', 'mlx-test.jsonl') 
 print(target_file_path)
 
 test_recs = dataset_to_records(test_files)
@@ -101,8 +109,12 @@ if EVAL_SIZE <= len(test_recs):
     print(f"Wrote {len(eval_recs)} eval records")
 
 # %%
-#import subprocess
-#subprocess.run(["python", "convert-datasets-to-llama.py"])
+import subprocess
+# Get the directory of the current script 
+script_dir = os.path.dirname(os.path.abspath(__file__)) 
+# Construct the full path to the target file 
+target_file_path = os.path.join(script_dir, "convert-datasets-to-llama.py") 
+subprocess.run(["python", target_file_path])
 
 # %%
 # Load and finetune LLM
@@ -227,11 +239,11 @@ os.makedirs(os.path.join(script_dir, 'adapters'), exist_ok=True)
 print(adapter_path_str)
 
 adapter_path = Path(adapter_path_str)
+try:
+    adapter_path.mkdir(parents=True, exist_ok=True)
+except FileExistsError: 
+    print(f"The file '{adapter_path}' already exists.")
 
-# Check if the file exists and delete it 
-if os.path.exists(adapter_path): 
-    os.remove(adapter_path)
-adapter_path.mkdir(parents=True, exist_ok=True)
 #set LORA parameters
 lora_config = {
  "lora_layers": 8,
@@ -261,6 +273,11 @@ num_train_params = (
 )
 print(f"Number of trainable parameters: {num_train_params}")
 
+#Free up memory
+import gc
+gc.collect()
+import pandas as pd
+pd.reset_option('all')
 
 
 # %%
