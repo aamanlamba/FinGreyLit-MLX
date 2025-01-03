@@ -1,4 +1,8 @@
-# FinGreyLit
+# FinGreyLit-MLX
+
+Fork of [FinGreyLit](https://github.com/NatLibFi/FinGreyLit) - exploring adapting this to other document repositories
+
+Also, developing MLX-based finetuning
 
 This repository contains a data set of curated Dublin Core style ground truth metadata from a selection of Finnish "grey literature" publications, along with links to the PDF publications. The dataset is mainly intended to enable and facilitate the development of automated methods for metadata extraction from PDF files, including but not limited to the use of large language models (LLMs).
 
