@@ -8,3 +8,4 @@ matplotlib
 pathlib
 ollama
 pyarrow
+python-dotenv
