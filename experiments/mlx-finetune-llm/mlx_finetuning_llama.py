@@ -42,7 +42,7 @@ random.seed(42)  # for deterministic sampling of test set
 script_dir = os.path.dirname(os.path.abspath(__file__)) 
 # Construct the full paths to the train and test files
 trainfiles_path = os.path.join(script_dir, '../../llm-dataset/*-train.jsonl') 
-testfiles_path = os.path.join(script_dir, '../../llm-dataset/*-train.jsonl')
+testfiles_path = os.path.join(script_dir, '../../llm-dataset/*-test.jsonl')
 train_files = glob.glob(trainfiles_path) 
 test_files = glob.glob(testfiles_path)
 print(train_files)
@@ -121,14 +121,17 @@ subprocess.run(["python", target_file_path])
 from mlx_lm import generate,load
 from huggingface_hub import login
 
-import os
+import os, sys
 from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize the client with your API key
-hf_accesstoken = os.environ.get("mlx_finetuning_api_key")
-print(hf_accesstoken)
-login(hf_accesstoken)
+try:
+    hf_accesstoken = os.environ.get("mlx_finetuning_api_key")
+    login(hf_accesstoken)
+except Exception as e:
+    print(str(e))
+    sys.exit(1)
 
 # %%
 #load model
@@ -202,13 +205,17 @@ print(df_train.head())
 print(df_test.head())
 print(df_eval.head())
 # convert dataframe to list for mlx
-#convert dataset to list for mlx
-train_set = df_train['text'].tolist()
-dev_set = df_eval['text'].tolist()
-test_set = df_test['text'].tolist()
 
 def preprocess(dataset):
     return dataset["text"].tolist()
+
+train_set = preprocess(df_train)
+dev_set = preprocess(df_eval)
+test_set = preprocess(df_test)
+#df_train['text'].tolist()
+#dev_set = df_eval['text'].tolist()
+#test_set = df_test['text'].tolist()
+
 #train_list = df_train.to_dict(orient='records')
 #test_list = df_test.to_dict(orient='records')
 #eval_list = df_eval.to_dict(orient='records')
@@ -217,8 +224,6 @@ def preprocess(dataset):
 print(train_set[0])
 print(dev_set[0])
 print(test_set[0])
-
-
 
 # %%
 # Model finetuning setup
@@ -230,19 +235,20 @@ from mlx_lm.tuner import train, TrainingArgs
 from mlx_lm.tuner import linear_to_lora_layers
 from pathlib import Path
 import json, time
-# Get the directory of the current script 
-script_dir = os.path.dirname(os.path.abspath(__file__)) 
-# Construct the full path to the target file 
-adapter_path_str = os.path.join(script_dir, 'adapters','adapter_config.json') 
-# Ensure the directory exists 
-os.makedirs(os.path.join(script_dir, 'adapters'), exist_ok=True)
-print(adapter_path_str)
 
-adapter_path = Path(adapter_path_str)
-try:
-    adapter_path.mkdir(parents=True, exist_ok=True)
-except FileExistsError: 
-    print(f"The file '{adapter_path}' already exists.")
+# Get the directory of the current script
+script_dir = Path(__file__).resolve().parent
+print(script_dir)
+
+# Construct the full path to the target file
+adapter_path = script_dir / 'adapters'
+print(adapter_path)
+
+# Ensure the directory exists
+# adapter_path.mkdir(parents=True, exist_ok=True)
+
+adapter_file_path = adapter_path / 'adapter_config.json'
+print(adapter_file_path)
 
 #set LORA parameters
 lora_config = {
@@ -253,16 +259,19 @@ lora_config = {
     "scale": 20.0,
     "dropout": 0.0,
 }}
-try:
-    with open(adapter_path, "x") as fid:
+# Check if adapter_config.json exists
+if adapter_file_path.exists():
+    print(f"The file '{adapter_file_path}' already exists.")
+else:
+    with open(adapter_file_path, "x") as fid:
         json.dump(lora_config, fid, indent=4)
-except FileExistsError: 
-    print(f"The file '{adapter_path}' already exists.")
+        print(f"Created '{adapter_file_path}'")
+
 # Set training parameters
 training_args = TrainingArgs(
     adapter_file=adapter_path / "adapters.safetensors",
-    iters=20,
-    steps_per_eval=50
+    iters=10, # number of iterations
+    steps_per_eval=50 # number of steps per evaluation
 )
 #Freeze base model
 model.freeze()
@@ -298,8 +307,6 @@ metrics = Metrics()
 
 # %%
 # start fine-tuning
-
-# Start fine-tuning
 start_time = time.time()
 
 train(
@@ -318,12 +325,20 @@ print(f"Completed finetuning Training in {duration/60:.2f} minutes")
 # plot graph of fine-tuning
 train_its, train_losses = zip(*metrics.train_losses)
 val_its, val_losses = zip(*metrics.val_losses)
+# Plot the training and validation losses
+# to-do: plt.plot gives an error
 plt.plot(train_its, train_losses, '-o')
 plt.plot(val_its, val_losses, '-o')
 plt.xlabel("Iteration")
 plt.ylabel("Loss")
 plt.legend(['Train', "Valid"])
 plt.show() 
-
-
+plt.savefig("finetuning_loss.png")
+# Build Lora model 
+model_lora, _ = load("meta-llama/Llama-3.2-1B-Instruct", 
+                        adapter_path=adapter_path,)
+print("Executing finetuned model")
+print(prompt)
+response = generate(model_lora, tokenizer, prompt=prompt, verbose=True)
+print(response)
 
